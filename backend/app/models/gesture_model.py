@@ -15,12 +15,12 @@ import torch.nn.functional as F
 NUM_CLASSES   = 21
 INPUT_DIM     = 66    # 21*3 landmarks + 3 velocity
 SEQ_LEN       = 32
-LSTM_HIDDEN   = 256
+LSTM_HIDDEN   = 128
 LSTM_LAYERS   = 2
-TRANSFORMER_D = 512
-TRANSFORMER_H = 8
-TRANSFORMER_L = 4
-DROPOUT       = 0.2
+TRANSFORMER_D = 128
+TRANSFORMER_H = 4
+TRANSFORMER_L = 2
+DROPOUT       = 0.3
 
 
 class PositionalEncoding(nn.Module):
@@ -120,6 +120,9 @@ class GestureModel(nn.Module):
         # Stage 2: BiLSTM
         h, _ = self.bilstm(h)               # (B, T, 2*LSTM_H)
         h = self.lstm_proj(h)               # (B, T, TRANSFORMER_D)
+
+        # Scale embedding before adding positional encoding
+        h = h * math.sqrt(TRANSFORMER_D)
 
         # Stage 3: positional encoding + Transformer
         h = self.pos_enc(h)

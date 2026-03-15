@@ -5,6 +5,7 @@ Also supports augmentation for robustness to lighting/angle/speed variation.
 """
 from __future__ import annotations
 import random
+import copy
 from pathlib import Path
 from typing import Tuple, List
 
@@ -87,7 +88,9 @@ class GestureDataset(Dataset):
                 pad = np.tile(resampled[-1:], (orig_len - new_len, 1))
                 seq = np.concatenate([resampled, pad], axis=0)
             else:
-                seq = resampled[:orig_len]
+                # Random crop instead of blindly truncating from start
+                start = random.randint(0, new_len - orig_len)
+                seq = resampled[start : start + orig_len]
 
         # 3. Horizontal reflection (flip x of landmarks)
         if random.random() < 0.3:
@@ -124,4 +127,7 @@ def split_dataset(dataset: GestureDataset, val_ratio: float = 0.15, seed: int = 
         val_idx.extend(indices[:split])
         train_idx.extend(indices[split:])
 
-    return Subset(dataset, train_idx), Subset(dataset, val_idx)
+    val_dataset = copy.deepcopy(dataset)
+    val_dataset.augment = False
+
+    return Subset(dataset, train_idx), Subset(val_dataset, val_idx)
