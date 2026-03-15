@@ -1,0 +1,76 @@
+/* ============================================================
+   AuraControl AI — Global Styles
+   Tailwind base + custom neon/glassmorphism utilities
+   ============================================================ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---- CSS Custom Properties ---- */
+:root {
+  --cyan:    #00ffff;
+  --magenta: #ff00ff;
+  --electric:#0066ff;
+  --amber:   #ffaa00;
+  --neongreen:#00ff41;
+  --purple:  #7b00ff;
+  --bg:      radial-gradient(circle at top, #020024 0%, #090979 40%, #000000 100%);
+}
+
+/* ---- Base reset ---- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  width: 100%; height: 100%; overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.25); border-radius: 2px; }
+
+/* ---- Font utilities ---- */
+.font-orbitron { font-family: 'Orbitron', sans-serif; }
+.font-fira     { font-family: 'Fira Code', monospace; }
+.font-inter    { font-family: 'Inter', sans-serif; }
+
+/* ---- Glow utilities ---- */
+.glow-cyan    { box-shadow: 0 0 15px rgba(0,255,255,0.5); }
+.glow-magenta { box-shadow: 0 0 15px rgba(255,0,255,0.5); }
+.text-glow    { text-shadow: 0 0 8px var(--cyan); }
+
+/* ---- Glass panel ---- */
+.glass {
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ---- Range slider ---- */
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.1);
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+/* ---- Reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
