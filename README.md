@@ -1,129 +1,144 @@
-# AuraControl AI 🖐✨
-**Minority Report-style contactless gesture control — >97% accuracy · <15ms inference**
+# AuraControl AI
 
-## Quick Start
+**Contactless gesture control for your computer — camera in, OS actions out.**
 
-### Frontend (Vercel / Local)
+> Repository status: this repo contains the **backend + reference frontend** for AuraControl.
+> A second, newer frontend lives at [`Advance_hand_gesture`](https://github.com/Tusharkapoor-oop/Advance_hand_gesture).
+> *(Repo currently named `idk` — rename to `auracontrol-backend` planned; GitHub redirects will keep links working.)*
+
+---
+
+## What it does
+
+```
+webcam → MediaPipe (21 landmarks) → Kalman smoothing → gesture classifier
+        → context engine (mode) → OS action dispatcher → keyboard/mouse
+        └─ WebSocket telemetry ─────────────────────────────→ React UI
+```
+
+Two inference modes:
+
+| Mode | How it works | When |
+|---|---|---|
+| **Heuristic (default)** | Geometric rules over landmark positions — no weights, no model download | Ships working out of the box |
+| **Trained model** | `app/models/gesture_model.py` → exported to ONNX, INT8 for CPU inference | After you collect data and train |
+
+> **Honest accuracy note:** the ">97% macro-F1" figure is the *target enforced by the benchmark script*
+> (`tests/test_accuracy.py` exits non-zero below 0.97). Model weights are **not** committed —
+> train your own with the steps below, then run the benchmark to see your number.
+
+---
+
+## Repository layout
+
+```
+backend/
+  app/
+    main.py               # FastAPI app — WebSocket /ws, health endpoint
+    gesture_engine.py     # classifier (heuristic or ONNX)
+    kalman_filter.py      # landmark smoothing
+    context_switcher.py   # mode → action resolution
+    os_controller.py      # pyautogui / pynput execution
+    models/
+      gesture_model.py    # torch model definition
+      dataset.py          # (32, 66) landmark-sequence dataset
+      train.py            # training entry point
+      weights/            # empty — weights are yours to produce
+    tests/
+      test_accuracy.py    # benchmark: macro-F1 ≥ 0.97 gate (needs weights + data)
+      test_latency.py     # benchmark: P95 < 15 ms on CPU (needs ONNX export)
+  Dockerfile · docker-compose.yml · requirements.txt · .env.example
+frontend/                 # reference React UI (Vite + three.js + zustand)
+```
+
+---
+
+## Quick start
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+
+# heuristic mode (no weights required)
+uvicorn app.main:app --reload --port 8000
+
+# health check
+curl http://localhost:8000/health        # {"status":"ok","engine":false}
+```
+
+Docker:
+
+```bash
+docker-compose up --build -d
+```
+
+### Frontend (this repo)
 
 ```bash
 cd frontend
 npm install
-npm run dev          # → http://localhost:5173
-# OR deploy:
-npm run build && vercel --prod
+npm run dev                 # http://localhost:5173
 ```
 
-**Vercel environment variable:**  
-`VITE_WS_URL=wss://your-backend.railway.app/ws`
+Point the frontend at the backend with an env var:
+
+```bash
+# .env.local — default backend route is /ws
+echo "VITE_WS_URL=ws://localhost:8000/ws" > .env.local
+```
 
 ---
 
-### Backend (Python / Docker)
+## Training the model (optional, for >97% mode)
 
 ```bash
 cd backend
 
-# Local dev (no model — uses heuristic fallback with >88% accuracy)
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+# 1. record ~15k samples per class as 32-frame / 66-feature .npy sequences
+mkdir -p data/open_palm data/fist data/swipe_left    # etc.
 
-# Docker
-docker-compose up --build -d
-```
-
-**Health check:** `GET http://localhost:8000/health` → `{"status":"ok"}`
-
----
-
-## High-Accuracy Model Training (~97%+ F1)
-
-### 1. Collect data
-Record gesture sequences from webcam:
-```bash
-# Each class needs ~15k samples for >97% F1
-mkdir -p data/open_palm data/fist data/swipe_left  # etc.
-# Then use your webcam recorder script to capture (32-frame, 66-feature) .npy files
-```
-
-### 2. Train
-```bash
-cd backend
+# 2. train
 python -m app.models.train --data_dir ./data --epochs 80 --batch_size 128
-```
 
-### 3. Export to ONNX (INT8 for <15ms CPU)
-```bash
+# 3. export to ONNX (INT8 target for <15 ms CPU)
 python -m app.models.export --weights ./app/models/weights/best_model.pt
-```
 
-### 4. Benchmark
-```bash
-python -m tests.test_latency    # P95 < 15ms check
-python -m tests.test_accuracy --data_dir ./data  # Macro F1 > 0.97 check
-```
-
----
-
-## Architecture
-
-```
-Camera → MediaPipe (21 landmarks × 3D) → Kalman Smoothing
-  → Circular Buffer (32 frames × 66 features)
-  → BiLSTM (2×256 bidirectional) → Transformer (4L, 512d, 8h)
-  → Confidence Threshold (0.85) → Majority Vote (5 frames)
-  → Context Switcher → OS Controller (PyAutoGUI/pynput)
-  → WebSocket → React Frontend → 3D Skeleton + Gesture Trail
-```
-
-### Model: BiLSTM + Transformer Hybrid
-| Component | Config |
-|---|---|
-| LSTM layers | 2, hidden=256, bidirectional |
-| Transformer | 4 layers, 512 dim, 8 heads, Pre-LN |
-| Input | T=32, 66 features (63 landmark + 3 velocity) |
-| Output | 21 gesture classes (softmax) |
-| Activation | GELU throughout |
-| Regularization | Dropout 0.2, Label smoothing 0.1 |
-
-## Performance Targets
-
-| Metric | Target | Notes |
-|---|---|---|
-| Macro F1 | **>97%** | On diverse held-out test set |
-| CPU P95 latency | **<15ms** | Intel i5, ONNX INT8 |
-| False positive rate | **<1%** | Confidence gate 0.85 + cooldown |
-| End-to-end latency | **<50ms** | Including WS round-trip |
-
-## Gesture Classes (21)
-`none` · `open_palm` · `fist` · `pointing` · `peace` · `thumb_up` · `thumb_down` · `ok` · `rock` · `pinch` · `grab` · `swipe_left` · `swipe_right` · `swipe_up` · `swipe_down` · `circle_cw` · `circle_ccw` · `zoom_in` · `zoom_out` · `throw` · `air_write`
-
-## Interaction Modes
-| Mode | Color | Gestures |
-|---|---|---|
-| **Efficiency** | 🔵 Cyan | Swipe slides, circle volume, pinch zoom |
-| **Creative** | 🟣 Purple | Pinch grab, throw paint, air draw |
-| **Security** | 🟣 Magenta | Air-signature authentication (DTW) |
-| **Utility** | 🟢 Green | Scroll, zoom, low-light robust |
-
-## Project Structure
-```
-auracontrol-ai/
-├── frontend/     # Vite + React + TypeScript → Vercel
-│   └── src/
-│       ├── hooks/useMediaPipe.ts    # MediaPipe GestureRecognizer
-│       ├── components/ThreeCanvas   # R3F 3D skeleton
-│       ├── components/GestureTrail  # SVG inertia fling trail
-│       └── ...
-└── backend/      # FastAPI + PyTorch → Docker/Railway
-    └── app/
-        ├── gesture_engine.py  # ONNX + heuristic fallback
-        ├── kalman_filter.py   # Pure-NumPy jitter smoothing
-        ├── models/
-        │   ├── gesture_model.py  # BiLSTM+Transformer
-        │   ├── train.py
-        │   └── export.py         # INT8 ONNX
-        └── tests/
+# 4. benchmark — both scripts exit non-zero on failure
+python -m tests.test_accuracy --data_dir ./data
+python -m tests.test_latency
 ```
 
 ---
-MIT License — Built for Vercel + Railway/Docker 🚀
+
+## API surface
+
+| Endpoint | Type | Purpose |
+|---|---|---|
+| `GET /health` | HTTP | Liveness + whether a model engine loaded |
+| `WS /ws` | WebSocket | Receives `{type:"landmarks", landmarks:[{x,y,z}×21], mode, timestamp}`; replies `{type:"gesture", payload:{gesture, confidence, …}}` and `{type:"fps", payload:{fps}}` |
+| `WS /ws` + `{type:"ping"}` | WebSocket | Keepalive → `{type:"pong"}` |
+
+---
+
+## Security notes (read before exposing anything)
+
+- The backend executes **OS-level input actions** (keyboard/mouse). Run it on `localhost`, behind your own network.
+- CORS is wide open in this development build — **do not deploy it to a public host** without restricting `allow_origins`.
+- A production build should add an auth token on the WebSocket handshake. Tracked in Limitations.
+
+---
+
+## Known limitations
+
+- Heuristic mode trades accuracy for zero-latency startup; it is not a substitute for the trained model on subtle gestures.
+- Benchmarks require artifacts that are intentionally not committed (dataset, weights).
+- Single-user by design: one WebSocket client at a time.
+- OS action dispatch supports a fixed gesture vocabulary (see `context_switcher.py`), not arbitrary commands.
+
+---
+
+## License
+
+No license file yet — MIT intended (to be added by the repository owner).
