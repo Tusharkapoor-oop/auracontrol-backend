@@ -4,7 +4,7 @@
 
 > Repository status: this repo contains the **backend + reference frontend** for AuraControl.
 > A second, newer frontend lives at [`Advance_hand_gesture`](https://github.com/Tusharkapoor-oop/Advance_hand_gesture).
-> *(Repo currently named `idk` — rename to `auracontrol-backend` planned; GitHub redirects will keep links working.)*
+> *(Renamed from `idk` to `auracontrol-backend`; GitHub keeps all old links redirecting.)*
 
 ---
 
